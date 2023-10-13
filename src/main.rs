@@ -9,11 +9,15 @@ pub mod word_game;
 pub mod render;
 pub mod events;
 
-use network::connect_to_dummy;
+use network::{connect_to_dummy, connect};
 use word_game::*;
 
 fn main() {
-    //let mut conn = connect().unwrap();
+    
+    #[cfg(not(debug_assertions))]
+    let mut conn = connect().unwrap();
+
+    #[cfg(debug_assertions)]
     let conn = connect_to_dummy().unwrap();
 
     // Make a Context.
