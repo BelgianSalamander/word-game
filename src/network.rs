@@ -182,7 +182,9 @@ pub enum Packet {
 
     ILost {
 
-    }
+    },
+
+    WaitingToRestart
 }
 
 impl Packet {
@@ -203,6 +205,8 @@ impl Packet {
 
             },
 
+            3 => Self::WaitingToRestart,
+
             x => {
                 return Err(io::Error::new(io::ErrorKind::Other, format!("Unrecognised packet type {}", x)));
             }
@@ -213,9 +217,10 @@ impl Packet {
 
     fn packet_id(&self) -> u16 {
         match self {
-            Self::ClientInfo {..} => 0,
-            Self::AddWord {..}    => 1,
-            Self::ILost {..}      => 2,
+            Self::ClientInfo {..}  => 0,
+            Self::AddWord {..}     => 1,
+            Self::ILost {..}       => 2,
+            Self::WaitingToRestart => 3
         }
     }
 
@@ -234,7 +239,9 @@ impl Packet {
 
             Self::ILost { } => {
 
-            }
+            },
+
+            Self::WaitingToRestart => {}
         }
 
         Ok(())
@@ -496,6 +503,9 @@ fn run_dummy() {
             Packet::ClientInfo {..} => {},
             Packet::AddWord { word } => println!("Dummy received {word}"),
             Packet::ILost {  } => {},
+            Packet::WaitingToRestart => {
+                
+            }
         }
     }
 }
