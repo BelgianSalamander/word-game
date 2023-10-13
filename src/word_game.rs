@@ -7,6 +7,13 @@ use crate::network::{Packet, Connection};
 
 pub const DEFAULT_WORD_LIST: &str = "5000_out";
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GameStatus {
+    Ongoing,
+    Win,
+    Lost
+}
+
 pub struct WordGame {
     pub word_list: Vec<String>,
 
@@ -17,7 +24,9 @@ pub struct WordGame {
 
     pub current_text: String,
 
-    pub conn : Connection
+    pub conn : Connection,
+
+    pub status: GameStatus
 }
 
 impl WordGame {
@@ -53,7 +62,9 @@ impl WordGame {
 
             current_text: String::new(),
 
-            conn
+            conn,
+
+            status: GameStatus::Ongoing
         }
     }
 
@@ -82,6 +93,11 @@ impl WordGame {
             match packet.unwrap() {
                 Packet::AddWord { word } => {
                     self.received_words.push(word)
+                },
+                Packet::ILost {  } => {
+                    self.status = GameStatus::Win;
+                    self.current_words.clear();
+                    self.received_words.clear();
                 }
                 _ => {}
             }

@@ -178,6 +178,10 @@ pub enum Packet {
 
     AddWord {
         word: String
+    },
+
+    ILost {
+
     }
 }
 
@@ -195,6 +199,10 @@ impl Packet {
                 word: data.read_string()?
             },
 
+            2 => Self::ILost {
+
+            },
+
             x => {
                 return Err(io::Error::new(io::ErrorKind::Other, format!("Unrecognised packet type {}", x)));
             }
@@ -207,6 +215,7 @@ impl Packet {
         match self {
             Self::ClientInfo {..} => 0,
             Self::AddWord {..}    => 1,
+            Self::ILost {..}      => 2,
         }
     }
 
@@ -221,6 +230,10 @@ impl Packet {
 
             Self::AddWord { word } => {
                 out.write_string(word)?;
+            },
+
+            Self::ILost { } => {
+
             }
         }
 
@@ -306,7 +319,7 @@ impl Connection {
 
         let packet_size = u32::from_be_bytes([self.buf[0], self.buf[1], self.buf[2], self.buf[3]]);
         println!("Attempting to get packet of {} bytes", packet_size);
-        let mut required = packet_size as usize - self.buf_pos + 4;
+        let mut required = packet_size as usize + 4 - self.buf_pos;
 
         while required > 0 {
             println!("Missing {} bytes", required);
@@ -458,7 +471,7 @@ fn run_dummy() {
         Some(format!("{}{}", first_char, rest))
     }).collect();
 
-    let secs_range = 2..=4;
+    let secs_range = 1..=1;
 
     let mut rng = rand::thread_rng();
     let mut next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(secs_range.clone()));
@@ -481,7 +494,8 @@ fn run_dummy() {
 
         match packet {
             Packet::ClientInfo {..} => {},
-            Packet::AddWord { word } => println!("Dummy received {word}")
+            Packet::AddWord { word } => println!("Dummy received {word}"),
+            Packet::ILost {  } => {},
         }
     }
 }

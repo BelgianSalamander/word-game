@@ -1,11 +1,10 @@
 use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable}};
 
 
-pub const TEXT_COLOR:Color = Color::new(0.1, 0.1, 0.1, 1.0);
-pub const WINDOW_BG:Color = Color::new(1.0, 1.0, 0.95, 1.0);
-pub const TEXT_BG_COLOR:Color = Color::new(0.8, 0.8, 0.95, 0.5);
-pub const LIGHT_TEXT_COLOR:Color = Color::new(0.7, 0.7, 0.7, 1.0);
-
+pub const TEXT_COLOR : Color       = Color::new(0.1, 0.1, 0.1, 1.0);
+pub const WINDOW_BG : Color        = Color::new(1.0, 1.0, 0.95, 1.0);
+pub const TEXT_BG_COLOR : Color    = Color::new(0.8, 0.8, 0.95, 0.5);
+pub const LIGHT_TEXT_COLOR : Color = Color::new(0.7, 0.7, 0.7, 1.0);
 
 /// shrinks a rectangle by v inwards on each side. each side decreases in length by 2v.
 pub fn shrink(rect: Rect, v: f32) -> Rect {
@@ -39,6 +38,7 @@ pub fn cut_left(rect: Rect, width: f32) -> (Rect, Rect) {
 
 /// render words clipped inside a rectangle, on top of a background with rounded corners
 pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<String>, rect: Rect, font: &str, font_size: f32, cross_out: &str, color: Color) {
+    if rect.w < 0.0 || rect.h < 0.0 { return; }
 
     let mut x = rect.x;
     let mut y = rect.y;
@@ -108,6 +108,7 @@ pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<
 }
 
 pub fn center_text_in_rect(ctx: &mut Context, canvas: &mut Canvas, text: &Text, rect: Rect) {
+    if rect.w < 0.0 || rect.h < 0.0 { return; }
     let prev = canvas.scissor_rect();
     canvas.set_scissor_rect(rect).unwrap();
 
@@ -119,4 +120,17 @@ pub fn center_text_in_rect(ctx: &mut Context, canvas: &mut Canvas, text: &Text, 
     canvas.draw(text, Vec2::new(rect.x + x, rect.y + y));
 
     canvas.set_scissor_rect(prev).unwrap();
+}
+
+fn lerp(start: f32, end: f32, t: f32) -> f32 {
+    start * (1.0 - t) + end * t
+}
+
+pub fn lerp_color(start: Color, end: Color, t: f32) -> Color {
+    Color { 
+        r: lerp(start.r, end.r, t),
+        g: lerp(start.g, end.g, t), 
+        b: lerp(start.b, end.b, t), 
+        a: lerp(start.a, end.a, t)
+    }
 }
