@@ -1,6 +1,6 @@
-use std::{collections::HashSet, time::Instant, path::Path, str::Lines};
+use std::{time::Instant, path::Path, str::Lines};
 
-use ggez::{winit::event::VirtualKeyCode, Context, input::keyboard::KeyMods, graphics::{Color, TextFragment, Text, self, DrawMode, StrokeOptions, Canvas, Rect, Drawable, FontData}, glam::Vec2, GameResult, event::EventHandler};
+use ggez::{Context, graphics::FontData, GameResult};
 use rand::Rng;
 
 use crate::network::{Packet, Connection};

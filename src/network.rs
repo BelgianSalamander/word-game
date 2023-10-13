@@ -1,6 +1,9 @@
 use std::net::{TcpStream, TcpListener};
 use std::io::{self, Read, ErrorKind, Write};
+use std::{thread, fs};
 use std::time::{Duration, Instant};
+
+use rand::Rng;
 
 type VersionType = u16;
 const MAJOR_VERSION: VersionType = 3;
@@ -86,12 +89,10 @@ impl<T: Read> FriendlyRead for T {
 
     fn read_string(&mut self) -> io::Result<String> {
         let length = self.read_u32()? as usize;
-        println!("Reading string of length {}", length);
         
         let mut bytes = vec![];
         bytes.resize(length, 0);
         self.read_exact(&mut bytes)?;
-        println!("Reading string from {:?}", bytes);
 
         match String::from_utf8(bytes) {
             Ok(x) => Ok(x),
@@ -317,7 +318,6 @@ impl Connection {
             required -= n_read;
         }
 
-        println!("Packet: {:?}", self.buf);
         let res = Packet::parse(&self.buf[4..])?;
 
         self.buf_pos = 0;
@@ -342,7 +342,7 @@ impl Connection {
 
     pub fn send_packet(&mut self, packet: Packet) -> io::Result<()> {
         let mut data = vec![];
-        packet.write(DebugWriteWrapper::new(&mut data))?;
+        packet.write(&mut data)?;
         self.stream.write_u32(data.len() as _)?;
         self.stream.write_all(&data)
     }
@@ -434,4 +434,61 @@ pub fn connect() -> io::Result<Connection> {
     println!("Verified versions!");
 
     Ok(conn)
+}
+
+const DUMMY_IP: &str = "localhost";
+const DUMMY_PORT: u16 = 5555;
+const DUMMY_WORD_LIST: &str = "basic";
+
+fn run_dummy() {
+    let stream = TcpStream::connect((DUMMY_IP, DUMMY_PORT)).unwrap();
+    let mut conn = Connection::new(stream).unwrap();
+
+    let words = fs::read_to_string(format!("res/words/{DUMMY_WORD_LIST}.txt")).unwrap();
+    let words = words.lines();
+    let words: Vec<_> = words.filter_map(|s| {
+        let trimmed = s.trim();
+        if trimmed.len() == 0 { return None; }
+
+        let first_char: String = trimmed.chars().nth(0).unwrap().to_uppercase().collect();
+        let rest: String = trimmed.chars().skip(1).flat_map(|c| c.to_lowercase()).collect();
+
+        Some(format!("{}{}", first_char, rest))
+    }).collect();
+
+    let mut rng = rand::thread_rng();
+    let mut next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(5..=10));
+
+    loop {
+        if next_word_send <= Instant::now() {
+            next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(5..=10));
+            let word = &words[rng.gen_range(0..words.len())];
+            conn.send_packet(Packet::add_word(word)).unwrap();
+        }
+
+        let packet = conn.poll_next_packet().unwrap();
+
+        if packet.is_none() {
+            thread::sleep(Duration::from_millis(100));
+            continue;
+        }
+
+        let packet = packet.unwrap();
+
+        match packet {
+            Packet::ClientInfo {..} => {},
+            Packet::AddWord { word } => println!("Dummy received {word}")
+        }
+    }
+}
+
+pub fn connect_to_dummy() -> io::Result<Connection> {
+
+    let listener = TcpListener::bind((DUMMY_IP, DUMMY_PORT))?;
+
+    thread::spawn(run_dummy);
+
+    let (stream, _addr) = listener.accept()?;
+
+    Ok(Connection::new(stream)?)
 }
