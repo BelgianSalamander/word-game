@@ -9,7 +9,7 @@ use ggez::glam::Vec2;
 use ggez::winit::event::VirtualKeyCode;
 use ggez::{Context, ContextBuilder, GameResult};
 use ggez::event::{self, EventHandler};
-use network::{connect};
+use network::{connect, connect_to_dummy};
 use rand::Rng;
 
 pub mod network;
@@ -20,7 +20,8 @@ pub mod events;
 use word_game::*;
 
 fn main() {
-    let mut conn = connect().unwrap();
+    //let mut conn = connect().unwrap();
+    let mut conn = connect_to_dummy().unwrap();
 
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")
