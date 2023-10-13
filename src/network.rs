@@ -86,10 +86,12 @@ impl<T: Read> FriendlyRead for T {
 
     fn read_string(&mut self) -> io::Result<String> {
         let length = self.read_u32()? as usize;
+        println!("Reading string of length {}", length);
         
         let mut bytes = vec![];
         bytes.resize(length, 0);
-        self.read(&mut bytes)?;
+        self.read_exact(&mut bytes)?;
+        println!("Reading string from {:?}", bytes);
 
         match String::from_utf8(bytes) {
             Ok(x) => Ok(x),
@@ -157,7 +159,7 @@ impl<T: Write> FriendlyWrite for T {
     }
 
     fn write_string(&mut self, x: &str) -> io::Result<()> {
-        self.write_all(&x.len().to_be_bytes())?;
+        self.write_all(&(x.len() as u32).to_be_bytes())?;
         self.write_all(x.as_bytes())?;
 
         Ok(())
@@ -169,6 +171,10 @@ pub enum Packet {
     ClientInfo { // 0
         major: VersionType,
         minor: VersionType
+    },
+
+    AddWord {
+        word: String
     }
 }
 
@@ -182,6 +188,10 @@ impl Packet {
                 minor: data.read_u16()?
             },
 
+            1 => Self::AddWord { 
+                word: data.read_string()?
+            },
+
             x => {
                 return Err(io::Error::new(io::ErrorKind::Other, format!("Unrecognised packet type {}", x)));
             }
@@ -192,7 +202,8 @@ impl Packet {
 
     fn packet_id(&self) -> u16 {
         match self {
-            Self::ClientInfo {..} => 0
+            Self::ClientInfo {..} => 0,
+            Self::AddWord {..}    => 1,
         }
     }
 
@@ -203,6 +214,10 @@ impl Packet {
             Self::ClientInfo { major, minor } => {
                 out.write_u16(*major)?;
                 out.write_u16(*minor)?;
+            },
+
+            Self::AddWord { word } => {
+                out.write_string(word)?;
             }
         }
 
@@ -211,6 +226,10 @@ impl Packet {
 
     pub fn client_info() -> Packet {
         Self::ClientInfo { major: MAJOR_VERSION, minor: MINOR_VERSION }
+    }
+
+    pub fn add_word(word: &str) -> Packet {
+        Self::AddWord { word: word.to_string() }
     }
 }
 
@@ -235,7 +254,7 @@ impl<T: Write> Write for DebugWriteWrapper<T> {
         print!("Writing the following data: '");
 
         for x in buf {
-            print!("{}", x);
+            print!("{}", *x as char);
         }
 
         println!("'");
@@ -298,6 +317,7 @@ impl Connection {
             required -= n_read;
         }
 
+        println!("Packet: {:?}", self.buf);
         let res = Packet::parse(&self.buf[4..])?;
 
         self.buf_pos = 0;

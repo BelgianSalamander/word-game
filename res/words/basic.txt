@@ -18,3 +18,10 @@ playing
 cube
 rubber
 calculator
+phone
+brown
+purple
+bus
+choir
+ruler
+excavator

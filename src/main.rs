@@ -1,22 +1,23 @@
+use std::collections::HashSet;
 use std::fs::{self, File};
 use std::path::{PathBuf, Path};
 use std::str::Lines;
 use std::time::Instant;
 
-use ggez::conf::{WindowSetup, WindowMode};
+use ggez::conf::{WindowSetup, WindowMode, NumSamples};
 use ggez::glam::Vec2;
 use ggez::input::keyboard::KeyMods;
 use ggez::winit::event::VirtualKeyCode;
 use ggez::{Context, ContextBuilder, GameResult};
-use ggez::graphics::{self, Color, FontData, Text, Rect, StrokeOptions, Canvas, Drawable, TextFragment};
+use ggez::graphics::{self, Color, FontData, Text, Rect, StrokeOptions, Canvas, Drawable, TextFragment, DrawMode};
 use ggez::event::{self, EventHandler};
-use network::connect;
+use network::{connect, Connection, Packet};
 use rand::Rng;
 
 pub mod network;
 
 fn main() {
-    //let mut conn = connect().unwrap();
+    let mut conn = connect().unwrap();
 
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")
@@ -24,13 +25,17 @@ fn main() {
             WindowMode::default()
                 .resizable(true)   
         )
+        .window_setup(
+            WindowSetup::default()
+                .samples(NumSamples::Four)
+        )
         .build()
         .expect("aieee, could not create ggez context!");
 
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = WordGame::new(&mut ctx, "basic");
+    let my_game = WordGame::new(&mut ctx, "basic", conn);
 
     // Run!
     event::run(ctx, event_loop, my_game);
@@ -44,11 +49,13 @@ struct WordGame {
 
     last_new_word: Instant,
 
-    current_text: String
+    current_text: String,
+
+    conn : Connection
 }
 
 impl WordGame {
-    pub fn new(ctx: &mut Context, word_list: &str) -> WordGame {
+    pub fn new(ctx: &mut Context, word_list: &str, conn: Connection) -> WordGame {
         ctx.fs.mount(Path::new("./res"), true);
 
         let words = std::io::read_to_string(ctx.fs.open(format!("/words/{word_list}.txt")).unwrap()).unwrap();
@@ -78,7 +85,9 @@ impl WordGame {
 
             last_new_word: Instant::now(),
 
-            current_text: String::new()
+            current_text: String::new(),
+
+            conn
         }
     }
 
@@ -87,6 +96,25 @@ impl WordGame {
 
         let idx = rng.gen_range(0..self.word_list.len());
         self.current_words.push(self.word_list[idx].clone());
+    }
+
+    fn process_network(&mut self) -> GameResult {
+        loop {
+            let packet = self.conn.poll_next_packet()?;
+
+            if packet.is_none() {
+                break;
+            }
+
+            match packet.unwrap() {
+                Packet::AddWord { word } => {
+                    self.received_words.push(word)
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -115,7 +143,7 @@ fn cut_left(rect: Rect, width: f32) -> (Rect, Rect) {
     )
 }
 
-fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<String>, rect: Rect, font: &str, font_size: f32, cross_out: &str) {
+fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<String>, rect: Rect, font: &str, font_size: f32, cross_out: &str, color: Color) {
     let prev = canvas.scissor_rect();
     canvas.set_scissor_rect(rect).unwrap();
 
@@ -125,9 +153,10 @@ fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<Stri
     let num_columns = ((rect.w / word_width).floor() as i32).max(1);
 
     let texts: Vec<(Text, &String)> = words.iter().map(move |w| {
-        let mut text = Text::new(w.clone());
+        let mut text = Text::new(TextFragment::new(w.clone()).color(color));
         text.set_font(font);
         text.set_scale(font_size);
+
         (text, w)
     }).collect();
 
@@ -194,10 +223,12 @@ fn center_text_in_rect(ctx: &mut Context, canvas: &mut Canvas, text: &Text, rect
 
 impl EventHandler for WordGame {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if (Instant::now() - self.last_new_word).as_secs_f32() > 1.0 {
+        if (Instant::now() - self.last_new_word).as_secs_f32() > 2.0 || self.current_words.len() < 5 {
             self.add_new_word();
             self.last_new_word = Instant::now();
         }
+
+        self.process_network()?;
 
         Ok(())
     }
@@ -210,7 +241,7 @@ impl EventHandler for WordGame {
 
         let draw_region = shrink(draw_region, MARGIN);
 
-        let (word_region, write_region) = cut_bottom(draw_region, 100.0);
+        let (word_region, write_region) = cut_bottom(draw_region, 75.0);
 
         center_text_in_rect(ctx, &mut canvas, &Text::new(
             TextFragment::new(&self.current_text)
@@ -218,6 +249,20 @@ impl EventHandler for WordGame {
                 .scale(70.0)
                 .font("courier_new")
         ), write_region);
+
+        canvas.draw(
+            &graphics::Mesh::new_rounded_rectangle(
+                ctx, 
+                DrawMode::Stroke(
+                    StrokeOptions::default()
+                        .with_line_width(3.0)
+                ),
+                write_region,
+                10.0,
+                Color::BLACK
+            ).unwrap(),
+            Vec2::new(0.0, 0.0)
+        );
 
         let (current_word_region, received_word_region) = cut_left(word_region, word_region.w * 0.5);
         let current_word_region = shrink(current_word_region, MARGIN);
@@ -240,7 +285,8 @@ impl EventHandler for WordGame {
                 .font("courier_new")
         ), received_word_region_header);
 
-        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 50.0, &self.current_text);
+        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 50.0, &self.current_text, Color::WHITE);
+        render_words_in_rect(ctx, &mut canvas, &self.received_words, received_word_region, "courier_new", 50.0, &self.current_text, Color::RED);
 
         // Draw code here...
         canvas.finish(ctx)
@@ -265,9 +311,33 @@ impl EventHandler for WordGame {
             return Ok(())
         }
 
-        if input.keycode.unwrap() == VirtualKeyCode::Back {
-            self.current_text.pop();
-        }
+        match input.keycode {
+            Some(VirtualKeyCode::Back) => {self.current_text.pop();},
+            Some(VirtualKeyCode::Return) => {
+                let Self {ref mut current_words, ref mut received_words, current_text, ..} = self;
+                let lower = current_text.to_lowercase();
+                let lower = &lower;
+
+                let mut words_to_send = HashSet::new();
+                
+                for word in current_words.iter() {
+                    if word.to_lowercase() == *lower {
+                        words_to_send.insert(word.clone());
+                    }
+                }
+
+                current_words.retain(move |w| w.to_lowercase() != *lower);
+                received_words.retain(move |w| w.to_lowercase() != *lower);
+
+                for word in words_to_send.iter() {
+                    println!("Sending '{}'", word);
+                    self.conn.send_packet(Packet::add_word(&word))?;
+                }
+                
+                self.current_text.clear();
+            }
+            _ => {}
+        };
 
         Ok(())
     }
