@@ -55,7 +55,7 @@ impl EventHandler for WordGame {
             write_region);
 
             center_text_in_rect(ctx, &mut canvas, &Text::new(
-                TextFragment::new(format!("{:.2}wpm",self.words_per_min))
+                TextFragment::new(format!("{:.1}wpm",self.words_per_min))
                     .color(TEXT_COLOR)
                     .scale(50.0)
                     .font("courier_new")),
