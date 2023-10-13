@@ -2,7 +2,8 @@ use std::{collections::HashSet, time::Instant};
 
 use ggez::{Context, winit::event::VirtualKeyCode, input::keyboard::KeyMods, graphics::{TextFragment, Text, Color, StrokeOptions, self, DrawMode}, glam::Vec2, GameResult, event::EventHandler};
 
-use crate::{render::{render_words_in_rect, center_text_in_rect, shrink, cut_top, cut_left, cut_bottom}, network::Packet, word_game::WordGame};
+use crate::{render::{render_words_in_rect, center_text_in_rect, shrink, cut_top, cut_left, cut_bottom, WINDOW_BG, TEXT_COLOR, LIGHT_TEXT_COLOR}, network::Packet, word_game::WordGame};
+
 
 
 
@@ -19,7 +20,7 @@ impl EventHandler for WordGame {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
-        let mut canvas = graphics::Canvas::from_frame(ctx, Color::from_rgb(100, 100, 100));
+        let mut canvas = graphics::Canvas::from_frame(ctx, WINDOW_BG);
         let draw_region = canvas.scissor_rect();
 
         const MARGIN: f32 = 10.0;
@@ -29,11 +30,17 @@ impl EventHandler for WordGame {
         let (word_region, write_region) = cut_bottom(draw_region, 75.0);
 
         center_text_in_rect(ctx, &mut canvas, &Text::new(
-            TextFragment::new(&self.current_text)
-                .color(Color::GREEN)
+            match (self.current_text).as_str() {
+            "" => TextFragment::new("Start typing...")
+                .color(LIGHT_TEXT_COLOR)
                 .scale(70.0)
-                .font("courier_new")
-        ), write_region);
+                .font("courier_new"),
+            _ => TextFragment::new(&self.current_text)
+                .color(TEXT_COLOR)
+                .scale(70.0)
+                .font("courier_new")}
+            ),
+         write_region);
 
         canvas.draw(
             &graphics::Mesh::new_rounded_rectangle(
@@ -57,21 +64,21 @@ impl EventHandler for WordGame {
         let (received_word_region_header, received_word_region) = cut_top(received_word_region, 80.0);
 
         center_text_in_rect(ctx, &mut canvas, &Text::new(
-            TextFragment::new("Ollie's Corn Farm")
+            TextFragment::new("Your Words")
                 .color(Color::BLACK)
                 .scale(80.0)
                 .font("courier_new")
         ), current_word_region_header);
 
         center_text_in_rect(ctx, &mut canvas, &Text::new(
-            TextFragment::new("Ollie's Corn Farm")
+            TextFragment::new("Attack Words")
                 .color(Color::BLACK)
                 .scale(80.0)
                 .font("courier_new")
         ), received_word_region_header);
 
-        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 50.0, &self.current_text, Color::WHITE);
-        render_words_in_rect(ctx, &mut canvas, &self.received_words, received_word_region, "courier_new", 50.0, &self.current_text, Color::RED);
+        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 30.0, &self.current_text, Color::BLACK);
+        render_words_in_rect(ctx, &mut canvas, &self.received_words, received_word_region, "courier_new", 30.0, &self.current_text, Color::RED);
 
         // Draw code here...
         canvas.finish(ctx)

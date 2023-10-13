@@ -1,4 +1,10 @@
-use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable}};
+use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable, FillOptions}};
+
+
+pub const TEXT_COLOR:Color = Color::new(0.9, 0.9, 0.9, 1.0);
+pub const WINDOW_BG:Color = Color::new(1.0, 1.0, 0.95, 1.0);
+pub const TEXT_BG_COLOR:Color = Color::new(0.8, 0.8, 0.95, 0.5);
+pub const LIGHT_TEXT_COLOR:Color = Color::new(0.7, 0.7, 0.7, 1.0);
 
 
 /// shrinks a rectangle by v inwards on each side. each side decreases in length by 2v.
@@ -30,8 +36,17 @@ pub fn cut_left(rect: Rect, width: f32) -> (Rect, Rect) {
     )
 }
 
+
+/// render words clipped inside a rectangle, on top of a background with rounded corners
 pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<String>, rect: Rect, font: &str, font_size: f32, cross_out: &str, color: Color) {
+
+    let mut x = rect.x;
+    let mut y = rect.y;
     let prev = canvas.scissor_rect();
+    canvas.draw(&graphics::Mesh::new_rectangle(
+        ctx, 
+            graphics::DrawMode::fill(), rect, TEXT_BG_COLOR).unwrap(), Vec2::new(0.0, 0.0)
+    );
     canvas.set_scissor_rect(rect).unwrap();
 
     let word_width: f32 = font_size * 6.0;
@@ -49,10 +64,8 @@ pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<
 
     let column_width = rect.w / num_columns as f32;
 
-    let mut x = rect.x;
-    let mut y = rect.y;
-
     let cross_out_lower = cross_out.to_lowercase();
+
 
     for (text, word) in texts {
         let end_y = y + word_height;
@@ -73,7 +86,7 @@ pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<
             } else {
                 positions[cross_out_lower.len()].x
             };
-
+            // cross out line
             canvas.draw(
                 &graphics::Mesh::new_line(
                     ctx,
