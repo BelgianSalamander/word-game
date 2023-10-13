@@ -61,9 +61,14 @@ impl WordGame {
 
     /// adds a word to currrent words
     pub fn add_new_word(&mut self) {
-        let mut rng = rand::thread_rng();
 
-        let idx = rng.gen_range(0..self.word_list.len());
+        let mut rng = rand::thread_rng();
+        let mut idx = rng.gen_range(0..self.word_list.len());
+        while self.current_words.contains(&self.word_list[idx]) {
+            idx = rng.gen_range(0..self.word_list.len());
+        }
+
+
         self.current_words.push(self.word_list[idx].clone());
     }
 

@@ -9,7 +9,9 @@ use crate::{render::{render_words_in_rect, center_text_in_rect, shrink, cut_top,
 
 impl EventHandler for WordGame {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if (Instant::now() - self.last_new_word).as_secs_f32() > 2.0 || self.current_words.len() < 5 {
+        if ((Instant::now() - self.last_new_word).as_secs_f32() > 0.3 || self.current_words.len() < 5)
+        && self.current_words.len() < 20
+         {
             self.add_new_word();
             self.last_new_word = Instant::now();
         }
@@ -71,14 +73,14 @@ impl EventHandler for WordGame {
         ), current_word_region_header);
 
         center_text_in_rect(ctx, &mut canvas, &Text::new(
-            TextFragment::new("Attack Words")
+            TextFragment::new(&format!("{}/20", self.received_words.len()))
                 .color(Color::BLACK)
                 .scale(80.0)
                 .font("courier_new")
         ), received_word_region_header);
 
-        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 30.0, &self.current_text, Color::BLACK);
-        render_words_in_rect(ctx, &mut canvas, &self.received_words, received_word_region, "courier_new", 30.0, &self.current_text, Color::RED);
+        render_words_in_rect(ctx, &mut canvas, &self.current_words, current_word_region, "courier_new", 50.0, &self.current_text, Color::BLACK);
+        render_words_in_rect(ctx, &mut canvas, &self.received_words, received_word_region, "courier_new", 50.0, &self.current_text, Color::RED);
 
         // Draw code here...
         canvas.finish(ctx)

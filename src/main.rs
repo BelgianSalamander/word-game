@@ -1,16 +1,9 @@
-use std::collections::HashSet;
-use std::fs::{self, File};
-use std::path::{PathBuf, Path};
-use std::str::Lines;
-use std::time::Instant;
+
 
 use ggez::conf::{WindowSetup, WindowMode, NumSamples};
-use ggez::glam::Vec2;
-use ggez::winit::event::VirtualKeyCode;
-use ggez::{Context, ContextBuilder, GameResult};
-use ggez::event::{self, EventHandler};
-use network::{connect};
-use rand::Rng;
+use ggez::ContextBuilder;
+use ggez::event;
+use network::connect;
 
 pub mod network;
 pub mod word_game;
@@ -38,7 +31,7 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = WordGame::new(&mut ctx, "basic", conn);
+    let my_game = WordGame::new(&mut ctx, "5000_out", conn);
 
     // Run!
     event::run(ctx, event_loop, my_game);

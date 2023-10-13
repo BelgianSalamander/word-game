@@ -1,7 +1,7 @@
 use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable, FillOptions}};
 
 
-pub const TEXT_COLOR:Color = Color::new(0.9, 0.9, 0.9, 1.0);
+pub const TEXT_COLOR:Color = Color::new(0.1, 0.1, 0.1, 1.0);
 pub const WINDOW_BG:Color = Color::new(1.0, 1.0, 0.95, 1.0);
 pub const TEXT_BG_COLOR:Color = Color::new(0.8, 0.8, 0.95, 0.5);
 pub const LIGHT_TEXT_COLOR:Color = Color::new(0.7, 0.7, 0.7, 1.0);
