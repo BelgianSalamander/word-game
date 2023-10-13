@@ -5,8 +5,7 @@ use rand::Rng;
 
 use crate::network::{Packet, Connection};
 
-
-
+pub const DEFAULT_WORD_LIST: &str = "5000_out";
 
 pub struct WordGame {
     pub word_list: Vec<String>,
@@ -22,7 +21,6 @@ pub struct WordGame {
 }
 
 impl WordGame {
-    
     pub fn new(ctx: &mut Context, word_list: &str, conn: Connection) -> WordGame {
         ctx.fs.mount(Path::new("./res"), true);
 

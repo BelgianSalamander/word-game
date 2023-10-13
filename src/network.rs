@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use rand::Rng;
 
+use crate::word_game::DEFAULT_WORD_LIST;
+
 type VersionType = u16;
 const MAJOR_VERSION: VersionType = 3;
 const MINOR_VERSION: VersionType = 5;
@@ -438,7 +440,7 @@ pub fn connect() -> io::Result<Connection> {
 
 const DUMMY_IP: &str = "localhost";
 const DUMMY_PORT: u16 = 5555;
-const DUMMY_WORD_LIST: &str = "basic";
+const DUMMY_WORD_LIST: &str = DEFAULT_WORD_LIST;
 
 fn run_dummy() {
     let stream = TcpStream::connect((DUMMY_IP, DUMMY_PORT)).unwrap();
@@ -456,12 +458,14 @@ fn run_dummy() {
         Some(format!("{}{}", first_char, rest))
     }).collect();
 
+    let secs_range = 2..=4;
+
     let mut rng = rand::thread_rng();
-    let mut next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(5..=10));
+    let mut next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(secs_range.clone()));
 
     loop {
         if next_word_send <= Instant::now() {
-            next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(5..=10));
+            next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(secs_range.clone()));
             let word = &words[rng.gen_range(0..words.len())];
             conn.send_packet(Packet::add_word(word)).unwrap();
         }

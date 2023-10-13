@@ -1,5 +1,3 @@
-
-
 use ggez::conf::{WindowSetup, WindowMode, NumSamples};
 use ggez::ContextBuilder;
 use ggez::event;
@@ -36,7 +34,7 @@ fn main() {
     // Create an instance of your event handler.
     // Usually, you should provide it with the Context object to
     // use when setting your game up.
-    let my_game = WordGame::new(&mut ctx, "5000_out", conn);
+    let my_game = WordGame::new(&mut ctx, DEFAULT_WORD_LIST, conn);
 
     // Run!
     event::run(ctx, event_loop, my_game);
