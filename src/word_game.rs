@@ -13,11 +13,8 @@ pub struct WordGame {
 
     pub current_words: Vec<String>,
     pub received_words: Vec<String>,
-
     pub last_new_word: Instant,
-
     pub current_text: String,
-
     pub conn : Connection
 }
 
@@ -72,7 +69,7 @@ impl WordGame {
         self.current_words.push(self.word_list[idx].clone());
     }
 
-    /// detects if word has been sent, and if so adds it to list of receved words
+    /// detects if word has been sent, and if so adds it to list of received words
     pub fn process_network(&mut self) -> GameResult {
         loop {
             let packet = self.conn.poll_next_packet()?;
