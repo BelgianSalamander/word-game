@@ -8,8 +8,8 @@ use rand::Rng;
 use crate::word_game::DEFAULT_WORD_LIST;
 
 type VersionType = u16;
-const MAJOR_VERSION: VersionType = 3;
-const MINOR_VERSION: VersionType = 5;
+const MAJOR_VERSION: VersionType = 0;
+const MINOR_VERSION: VersionType = 2;
 
 trait FriendlyRead {
     fn read_u8(&mut self) -> io::Result<u8>;
@@ -504,7 +504,7 @@ fn run_dummy() {
             Packet::AddWord { word } => println!("Dummy received {word}"),
             Packet::ILost {  } => {},
             Packet::WaitingToRestart => {
-                
+
             }
         }
     }
