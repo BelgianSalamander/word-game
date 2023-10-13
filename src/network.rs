@@ -89,12 +89,10 @@ impl<T: Read> FriendlyRead for T {
 
     fn read_string(&mut self) -> io::Result<String> {
         let length = self.read_u32()? as usize;
-        println!("Reading string of length {}", length);
         
         let mut bytes = vec![];
         bytes.resize(length, 0);
         self.read_exact(&mut bytes)?;
-        println!("Reading string from {:?}", bytes);
 
         match String::from_utf8(bytes) {
             Ok(x) => Ok(x),

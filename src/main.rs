@@ -1,27 +1,17 @@
-use std::collections::HashSet;
-use std::fs::{self, File};
-use std::path::{PathBuf, Path};
-use std::str::Lines;
-use std::time::Instant;
-
 use ggez::conf::{WindowSetup, WindowMode, NumSamples};
-use ggez::glam::Vec2;
-use ggez::winit::event::VirtualKeyCode;
-use ggez::{Context, ContextBuilder, GameResult};
-use ggez::event::{self, EventHandler};
-use network::{connect, connect_to_dummy};
-use rand::Rng;
+use ggez::{ContextBuilder, event};
 
 pub mod network;
 pub mod word_game;
 pub mod render;
 pub mod events;
 
+use network::connect_to_dummy;
 use word_game::*;
 
 fn main() {
     //let mut conn = connect().unwrap();
-    let mut conn = connect_to_dummy().unwrap();
+    let conn = connect_to_dummy().unwrap();
 
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")

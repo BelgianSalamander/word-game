@@ -1,4 +1,4 @@
-use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable, FillOptions}};
+use ggez::{Context, glam::Vec2, graphics::{Color, self, Canvas, TextFragment, Rect, Text, Drawable}};
 
 
 pub const TEXT_COLOR:Color = Color::new(0.9, 0.9, 0.9, 1.0);
@@ -28,7 +28,7 @@ pub fn cut_top(rect: Rect, height: f32) -> (Rect, Rect) {
         Rect {x: rect.x, y: rect.y + height, w: rect.w, h: rect.h - height}
     )
 }
-/// cuts rectangle in half, measured from the left. returns: (TOP RECTANGLE, BOTTOM RECTANGLE)
+/// cuts rectangle in half, measured from the left. returns: (LEFT RECTANGLE, RIGHT RECTANGLE)
 pub fn cut_left(rect: Rect, width: f32) -> (Rect, Rect) {
     (
         Rect {x: rect.x, y: rect.y, w: width, h: rect.h},
@@ -72,7 +72,7 @@ pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<
 
         if end_y > rect.y + rect.h {
             y = rect.y;
-            x += word_width;
+            x += column_width;
         }
 
         canvas.draw(&text, Vec2::new(x, y));
