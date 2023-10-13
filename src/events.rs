@@ -2,7 +2,7 @@ use std::{collections::HashSet, time::Instant};
 
 use ggez::{Context, winit::event::VirtualKeyCode, input::keyboard::KeyMods, graphics::{TextFragment, Text, Color, StrokeOptions, self, DrawMode}, glam::Vec2, GameResult, event::EventHandler};
 
-use crate::{render::{render_words_in_rect, center_text_in_rect, shrink, cut_top, cut_left, cut_bottom, WINDOW_BG, TEXT_COLOR, LIGHT_TEXT_COLOR, lerp_color}, network::Packet, word_game::{WordGame, GameStatus}};
+use crate::{render::{render_words_in_rect, center_text_in_rect, shrink, cut_top, cut_left, cut_bottom, WINDOW_BG, TEXT_COLOR, LIGHT_TEXT_COLOR, lerp_color, cut_right}, network::Packet, word_game::{WordGame, GameStatus}};
 
 const WORD_LIMIT: usize = 20;
 
@@ -53,6 +53,13 @@ impl EventHandler for WordGame {
                     .font("courier_new")}
                 ),
             write_region);
+
+            center_text_in_rect(ctx, &mut canvas, &Text::new(
+                TextFragment::new(format!("{:.2}wpm",self.words_per_min))
+                    .color(TEXT_COLOR)
+                    .scale(50.0)
+                    .font("courier_new")),
+            cut_right(write_region,200.0).1);
 
             canvas.draw(
                 &graphics::Mesh::new_rounded_rectangle(
@@ -112,6 +119,14 @@ impl EventHandler for WordGame {
                     .scale(150.0)
                     .font("courier_new")
             ), draw_region);
+            
+            center_text_in_rect(ctx, &mut canvas, &Text::new(
+                TextFragment::new(format!("{:.2}wpm",self.words_per_min))
+                    .color(TEXT_COLOR)
+                    .scale(50.0)
+                    .font("courier_new"),
+            ), cut_top(draw_region, draw_region.h/2.0).1);
+
         }
 
         canvas.finish(ctx)
@@ -154,8 +169,18 @@ impl EventHandler for WordGame {
                     }
                 }
 
+                let start_len = current_words.len() + received_words.len();
+
                 current_words.retain(move |w| w.to_lowercase() != *lower);
                 received_words.retain(move |w| w.to_lowercase() != *lower);
+
+
+                let len_change = start_len -(current_words.len() + received_words.len());
+
+                self.total_words += len_change as u64;
+
+                self.words_per_min = self.total_words as f32/(self.start_time.elapsed().as_secs_f32()/60.0);
+
 
                 for word in words_to_send.iter() {
                     println!("Sending '{}'", word);

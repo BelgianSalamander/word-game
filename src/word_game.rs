@@ -15,13 +15,15 @@ pub enum GameStatus {
 }
 
 pub struct WordGame {
+    pub start_time: Instant,
+    pub total_words: u64,
     pub word_list: Vec<String>,
 
     pub current_words: Vec<String>,
     pub received_words: Vec<String>,
     pub last_new_word: Instant,
     pub current_text: String,
-
+    pub words_per_min: f32,
     pub conn : Connection,
 
     pub status: GameStatus
@@ -62,7 +64,10 @@ impl WordGame {
 
             conn,
 
-            status: GameStatus::Ongoing
+            status: GameStatus::Ongoing,
+            start_time: Instant::now(),
+            total_words: 0,
+            words_per_min: 0.0,
         }
     }
 

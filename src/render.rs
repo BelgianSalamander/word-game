@@ -35,6 +35,14 @@ pub fn cut_left(rect: Rect, width: f32) -> (Rect, Rect) {
     )
 }
 
+/// cuts rectangle in half, measured from the right. returns: (LEFT RECTANGLE, RIGHT RECTANGLE)
+pub fn cut_right(rect: Rect, width: f32) -> (Rect, Rect) {
+    (
+        Rect {x: rect.x, y: rect.y, w: rect.w-width, h: rect.h},
+        Rect {x: rect.x + rect.w-width, y: rect.y, w: width, h: rect.h}
+    )
+}
+
 
 /// render words clipped inside a rectangle, on top of a background with rounded corners
 pub fn render_words_in_rect(ctx: &mut Context, canvas: &mut Canvas, words: &Vec<String>, rect: Rect, font: &str, font_size: f32, cross_out: &str, color: Color) {
