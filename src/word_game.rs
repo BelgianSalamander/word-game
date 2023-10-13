@@ -18,7 +18,8 @@ pub struct WordGame {
     pub start_time: Instant,
     pub total_words: u64,
     pub word_list: Vec<String>,
-
+    pub opponent_waiting_to_restart: bool,
+    pub waiting_to_restart: bool,
     pub current_words: Vec<String>,
     pub received_words: Vec<String>,
     pub last_new_word: Instant,
@@ -45,16 +46,13 @@ impl WordGame {
             Some(format!("{}{}", first_char, rest))
         }).collect();
 
-        for word in &words {
-            println!("{}", word);
-        }
 
 
         ctx.gfx.add_font("courier_new", FontData::from_path(ctx, "/font/cour.ttf").unwrap());
 
         WordGame {
             word_list: words,
-
+            waiting_to_restart: false,
             current_words: vec![],
             received_words: vec![],
 
@@ -68,6 +66,8 @@ impl WordGame {
             start_time: Instant::now(),
             total_words: 0,
             words_per_min: 0.0,
+
+            opponent_waiting_to_restart: false,
         }
     }
 
@@ -102,11 +102,30 @@ impl WordGame {
                     self.current_words.clear();
                     self.received_words.clear();
                 }
+                Packet::WaitingToRestart { } => {
+                    self.opponent_waiting_to_restart = true;
+                    if self.waiting_to_restart {
+                        self.reset();
+                    }
+                }
                 _ => {}
             }
         }
 
         Ok(())
+    }
+
+    pub fn reset(&mut self) {
+            self.current_words = vec![];
+            self.received_words = vec![];
+            self.last_new_word = Instant::now();
+            self.current_text = String::new();
+            self.status = GameStatus::Ongoing;
+            self.start_time = Instant::now();
+            self.total_words = 0;
+            self.words_per_min = 0.0;
+            self.opponent_waiting_to_restart = false;
+            self.waiting_to_restart = false;
     }
 }
 

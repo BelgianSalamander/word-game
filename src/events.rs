@@ -121,7 +121,14 @@ impl EventHandler for WordGame {
             ), draw_region);
             
             center_text_in_rect(ctx, &mut canvas, &Text::new(
-                TextFragment::new(format!("{:.2}wpm",self.words_per_min))
+                TextFragment::new(format!("{:.2}wpm\n{}",self.words_per_min,
+                match (self.opponent_waiting_to_restart, self.waiting_to_restart) {
+                    (false, false) => "press r to restart",
+                    (true, false) => "opponent wants to play again, press r to restart",
+                    (false, true) => "waiting for opponent...",
+                    (true, true) => "restarting...",
+                }
+            ))
                     .color(TEXT_COLOR)
                     .scale(50.0)
                     .font("courier_new"),
@@ -133,10 +140,27 @@ impl EventHandler for WordGame {
     }
 
     fn text_input_event(&mut self, _ctx: &mut Context, character: char) -> Result<(), ggez::GameError> {
-        if self.status != GameStatus::Ongoing { return Ok(()); }
-        if character.is_alphabetic() || character == ' ' {
-            self.current_text.push(character);
+
+        match self.status {
+            GameStatus::Ongoing=> {
+                if character.is_alphabetic() || character == ' ' {
+                    self.current_text.push(character);
+                }
+            }
+            GameStatus::Lost | GameStatus::Win => {
+                match character {
+                    'r' | 'R' => {
+                        self.waiting_to_restart = true;
+                        if self.opponent_waiting_to_restart {
+                            self.reset();
+                        }
+                    }
+                    _ => {}
+                }
+            }
         }
+
+
 
         Ok(())
     }

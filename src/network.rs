@@ -504,7 +504,7 @@ fn run_dummy() {
             Packet::AddWord { word } => println!("Dummy received {word}"),
             Packet::ILost {  } => {},
             Packet::WaitingToRestart => {
-
+                conn.send_packet(Packet::WaitingToRestart).unwrap();
             }
         }
     }
