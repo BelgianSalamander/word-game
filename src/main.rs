@@ -9,19 +9,9 @@ pub mod word_game;
 pub mod render;
 pub mod events;
 
-use network::{connect_to_dummy, connect};
 use word_game::*;
 
 fn main() {
-    
-    // #[cfg(not(debug_assertions))]
-    // let mut conn = connect().unwrap();
-
-    // #[cfg(debug_assertions)]
-    // let conn = connect_to_dummy().unwrap();
-
-
-
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")
         .window_mode(

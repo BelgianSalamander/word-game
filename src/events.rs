@@ -12,37 +12,40 @@ use ggez::{
 use crate::{
     network::Packet,
     render::{
-        center_text_in_rect, cut_bottom, cut_left, cut_right, cut_top, lerp_color,
+        center_text_in_rect, cut_bottom, cut_left, cut_right, cut_top,
         render_words_in_rect, shrink, LIGHT_TEXT_COLOR, TEXT_COLOR, WINDOW_BG,
     },
-    word_game::{GameStatus, WordGame},
+    word_game::{WordGame, GameState, GameOutcome, OngoingGame, StateTransition},
 };
 
-const WORD_LIMIT: usize = 20;
 pub const MARGIN: f32 = 10.0;
 
 impl EventHandler for WordGame {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        if self.status == GameStatus::Ongoing {
-            if ((Instant::now() - self.last_new_word).as_secs_f32() > 0.3
-                || self.current_words.len() < 5)
-                && self.current_words.len() < 20
-            {
-                self.add_new_word();
-                self.last_new_word = Instant::now();
-            }
-        }
-
         self.process_network()?;
 
-        let limit = (WORD_LIMIT*2 - (self.start_time.elapsed().as_secs() as usize/(120/WORD_LIMIT))).min(WORD_LIMIT);
+        match self.state {
+            GameState::Ongoing(ref mut ongoing) => {
+                if ((Instant::now() - ongoing.last_new_word).as_secs_f32() > 0.3
+                    || ongoing.current_words.len() < 5)
+                    && ongoing.current_words.len() < 20
+                {
+                    ongoing.add_new_word(&self.word_list);
+                    ongoing.last_new_word = Instant::now();
+                }
 
-        if self.received_words.len() > limit {
-            self.status = GameStatus::Lost;
-            self.received_words.clear();
-            self.current_words.clear();
-            self.conn.as_mut().unwrap().send_packet(Packet::ILost {})?;
+                if ongoing.received_words.len() > ongoing.limit() {
+                    ongoing.conn.send_packet(Packet::ILost {})?;
+                    self.queue_transition(StateTransition::LoseGame);
+                }
+            },
+            GameState::Ended { waiting_to_restart: true, opponent_waiting_to_restart: true, ..} => {
+                self.queue_transition(StateTransition::RestartGame)
+            }
+            _ => {}
         }
+
+        self.flush_transitions();
 
         Ok(())
     }
@@ -53,19 +56,19 @@ impl EventHandler for WordGame {
         let draw_region = shrink(draw_region, MARGIN);
         self.draw_rect = draw_region;
         
-        match &self.status {
-            GameStatus::Ongoing => {
+        match &self.state {
+            GameState::Ongoing(ongoing) => {
                 let (word_region, write_region) = cut_bottom(draw_region, 75.0);
 
                 center_text_in_rect(
                     ctx,
                     &mut canvas,
-                    &Text::new(match (self.current_text).as_str() {
+                    &Text::new(match (&ongoing.current_text).as_str() {
                         "" => TextFragment::new("Start typing...")
                             .color(LIGHT_TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),
-                        _ => TextFragment::new(self.current_text.clone()+"|")
+                        _ => TextFragment::new(ongoing.current_text.clone()+"|")
                             .color(TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),
@@ -77,7 +80,7 @@ impl EventHandler for WordGame {
                     ctx,
                     &mut canvas,
                     &Text::new(
-                        TextFragment::new(format!("{:.1}wpm", self.words_per_min))
+                        TextFragment::new(format!("{:.1}wpm", ongoing.wpm()))
                             .color(TEXT_COLOR)
                             .scale(50.0)
                             .font("courier_new"),
@@ -118,12 +121,13 @@ impl EventHandler for WordGame {
                     ),
                     current_word_region_header,
                 );
-                let limit = (WORD_LIMIT*2 - (self.start_time.elapsed().as_secs() as usize/(120/WORD_LIMIT))).min(WORD_LIMIT);
-            let exclamation_mark_count = if self.received_words.len() <= limit - 5 {
-                0
-            } else {
-                (self.received_words.len() + 5 - limit).min(5)
-            };
+
+                let limit = ongoing.limit();
+                let exclamation_mark_count = if ongoing.received_words.len() <= limit - 5 {
+                    0
+                } else {
+                    (ongoing.received_words.len() + 5 - limit).min(5)
+                };
 
                 center_text_in_rect(
                     ctx,
@@ -131,7 +135,7 @@ impl EventHandler for WordGame {
                     &Text::new(
                         TextFragment::new(&format!(
                             "{}/{}{}",
-                            self.received_words.len(),
+                            ongoing.received_words.len(),
                             limit,
                             "!".repeat(exclamation_mark_count)
                         ))
@@ -145,31 +149,30 @@ impl EventHandler for WordGame {
                 render_words_in_rect(
                     ctx,
                     &mut canvas,
-                    &self.current_words,
+                    &ongoing.current_words,
                     current_word_region,
                     "courier_new",
                     50.0,
-                    &self.current_text,
+                    &ongoing.current_text,
                     Color::BLACK,
                 );
                 render_words_in_rect(
                     ctx,
                     &mut canvas,
-                    &self.received_words,
+                    &ongoing.received_words,
                     received_word_region,
                     "courier_new",
                     50.0,
-                    &self.current_text,
+                    &ongoing.current_text,
                     Color::RED,
                 );
-            }
-            GameStatus::Lost | GameStatus::Win => {
+            },
+            GameState::Ended { outcome, waiting_to_restart, opponent_waiting_to_restart, wpm,  .. } => {
                 //TODO: Improve this screen lol
 
-                let text = match self.status {
-                    GameStatus::Win => "You won!",
-                    GameStatus::Lost => "You lost!",
-                    _ => unreachable!(),
+                let text = match outcome {
+                    GameOutcome::Win => "You won!",
+                    GameOutcome::Loss => "You lost!"
                 };
 
                 center_text_in_rect(
@@ -190,8 +193,8 @@ impl EventHandler for WordGame {
                     &Text::new(
                         TextFragment::new(format!(
                             "press n to change ip\n{:.2}wpm\n{}",
-                            self.words_per_min,
-                            match (self.opponent_waiting_to_restart, self.waiting_to_restart) {
+                            wpm,
+                            match (opponent_waiting_to_restart, waiting_to_restart) {
                                 (false, false) => "press r to restart",
                                 (true, false) => "opponent wants to play again, press r to restart",
                                 (false, true) => "waiting for opponent...",
@@ -204,15 +207,10 @@ impl EventHandler for WordGame {
                     ),
                     cut_top(draw_region, draw_region.h / 2.0).1,
                 );
-            }
-            GameStatus::InputData {
-                input_y,
-                host,
-                ip,
-                port,
-            } => {
+            },
+            GameState::ConnectionConfig { input_y, host, ip, port } => {
                 let height = draw_region.h / 4.0;
-                let cursor1 = if (self.start_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
+                let cursor1 = if (self.create_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
                     == 0.0
                     && *input_y == 1
                 {
@@ -220,7 +218,7 @@ impl EventHandler for WordGame {
                 } else {
                     " "
                 };
-                let cursor2 = if (self.start_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
+                let cursor2 = if (self.create_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
                     == 0.0
                     && *input_y == 2
                 {
@@ -252,7 +250,9 @@ impl EventHandler for WordGame {
                         i.1,
                     )
                 }
-            }
+            },
+
+            GameState::InvalidState => panic!("Leaked InvalidState!")
         }
         canvas.finish(ctx)
     }
@@ -264,25 +264,21 @@ impl EventHandler for WordGame {
         _x: f32,
         y: f32,
     ) -> Result<(), ggez::GameError> {
-        match self.status.clone() {
-            GameStatus::InputData {
-                input_y,
-                mut host,
-                ip,
-                port,
+        match self.state {
+            GameState::ConnectionConfig {
+                ref mut input_y,
+                ref mut host,
+                ..
             } => {
                 let mut new_input_y = (y * 4.0 / shrink(self.draw_rect, -MARGIN).h).floor() as u32;
 
                 if new_input_y == 0 {
-                    host = !host;
-                    new_input_y = input_y
+                    *host = !*host;
+                    new_input_y = *input_y
                 }
-                self.status = GameStatus::InputData {
-                    input_y: new_input_y,
-                    host,
-                    ip,
-                    port,
-                };
+
+                *input_y = new_input_y;
+
                 if new_input_y == 3 {
                     self.pair_up_ui();
                 }
@@ -297,53 +293,38 @@ impl EventHandler for WordGame {
         _ctx: &mut Context,
         character: char,
     ) -> Result<(), ggez::GameError> {
-        match self.status.clone() {
-            GameStatus::Ongoing => {
+        match self.state {
+            GameState::Ongoing(ref mut ongoing) => {
                 if character.is_alphabetic() || character == ' ' {
-                    self.current_text.push(character);
+                    ongoing.current_text.push(character);
                 }
             }
-            GameStatus::Lost | GameStatus::Win => match character {
+            GameState::Ended { ref mut waiting_to_restart, ref mut conn, .. } => match character {
                 'r' | 'R' => {
-                    self.waiting_to_restart = true;
-                    self.conn.as_mut().unwrap().send_packet(Packet::WaitingToRestart)?;
-
-                    if self.opponent_waiting_to_restart {
-                        self.reset();
-                    }
+                    *waiting_to_restart = true;
+                    conn.send_packet(Packet::WaitingToRestart)?;
                 }
                 'n' | 'N' => {
-                    self.reset();
-                    self.status = GameStatus::InputData { input_y: 1, host: false, ip: "localhost".to_owned(), port: 5555}
+                    self.state = GameState::ConnectionConfig { input_y: 1, host: false, ip: "localhost".to_owned(), port: 5555}
                 }
                 _ => {}
             },
-            GameStatus::InputData {
-                mut input_y,
-                host,
-                mut ip,
-                mut port,
+            GameState::ConnectionConfig {
+                ref mut input_y,
+                ref mut ip,
+                ref mut port,
+                ..
             } => match input_y {
                 1 => {
                     if character.is_alphabetic() || character == ' ' {
                         ip.push(character);
-                        self.status = GameStatus::InputData {
-                            input_y,
-                            host,
-                            ip,
-                            port,
-                        }
                     }
                 }
                 2 => {
                     if let Ok(n) = String::from(character).parse::<u32>() {
-                        port *= 10;
-                        port += n;
-                        self.status = GameStatus::InputData {
-                            input_y,
-                            host,
-                            ip,
-                            port,
+                        let res = (*port as u32) * 10 + n;
+                        if res <= u16::MAX as u32 {
+                            *port = res as u16;
                         }
                     }
                 }
@@ -353,15 +334,10 @@ impl EventHandler for WordGame {
                     }
                 }
                 _ => {
-                    input_y = 0;
-                    self.status = GameStatus::InputData {
-                        input_y,
-                        host,
-                        ip,
-                        port,
-                    }
+                    *input_y = 0;
                 }
             },
+            GameState::InvalidState => panic!("Leaked InvalidState!")
         }
 
         Ok(())
@@ -382,78 +358,64 @@ impl EventHandler for WordGame {
         }
 
         match input.keycode {
-            Some(VirtualKeyCode::Back) => match self.status.clone() {
-                GameStatus::Ongoing => {
-                    self.current_text.pop();
-                }
-                GameStatus::Win => todo!(),
-                GameStatus::Lost => todo!(),
-                GameStatus::InputData {
+            Some(VirtualKeyCode::Back) => match self.state {
+                GameState::Ongoing(ref mut ongoing) => {
+                    ongoing.current_text.pop();
+                },
+                GameState::ConnectionConfig {
                     input_y,
-                    host,
-                    mut ip,
-                    mut port,
+                    ref mut ip,
+                    ref mut port,
+                    ..
                 } => {
                     match input_y {
                         1 => {
                             ip.pop();
                         }
-                        2 => port = (port as f32 / 10.0).floor() as u32,
+                        2 => *port = (*port as f32 / 10.0).floor() as u16,
                         _ => {}
                     }
-                    self.status = GameStatus::InputData {
-                        input_y,
-                        host,
-                        ip,
-                        port,
-                    }
-                }
+                },
+                _ => {}
             },
             Some(VirtualKeyCode::Return) => {
-                if self.status != GameStatus::Ongoing {
-                    return Ok(());
-                }
-                let Self {
+                if let GameState::Ongoing(OngoingGame{
                     ref mut current_words,
                     ref mut received_words,
-                    current_text,
+                    ref mut current_text,
+
+                    ref mut total_words,
+
+                    ref mut conn,
+                    
                     ..
-                } = self;
-                let lower = current_text.to_lowercase();
-                let lower = &lower;
+                }) = self.state {
+                    let lower = current_text.to_lowercase();
+                    let lower = &lower;
 
-                let mut words_to_send = HashSet::new();
+                    let mut words_to_send = HashSet::new();
 
-                for word in current_words.iter() {
-                    if word.to_lowercase() == *lower {
-                        words_to_send.insert(word.clone());
+                    for word in current_words.iter() {
+                        if word.to_lowercase() == *lower {
+                            words_to_send.insert(word.clone());
+                        }
                     }
+
+                    let start_len = current_words.len() + received_words.len();
+
+                    current_words.retain(move |w| w.to_lowercase() != *lower);
+                    received_words.retain(move |w| w.to_lowercase() != *lower);
+
+                    let len_change = start_len - (current_words.len() + received_words.len());
+
+                    *total_words += len_change as u64;
+                    for word in words_to_send.iter() {
+                        println!("Sending '{}'", word);
+                        conn.send_packet(Packet::add_word(&word))?;
+                    }
+
+                    current_text.clear();
                 }
-
-                let start_len = current_words.len() + received_words.len();
-
-                current_words.retain(move |w| w.to_lowercase() != *lower);
-                received_words.retain(move |w| w.to_lowercase() != *lower);
-
-                let len_change = start_len - (current_words.len() + received_words.len());
-
-                self.total_words += len_change as u64;
-
-                self.words_per_min =
-                    self.total_words as f32 / (self.start_time.elapsed().as_secs_f32() / 60.0);
-
-                if self.conn.is_none() {
-                    return Ok(());
-                }
-                for word in words_to_send.iter() {
-                    println!("Sending '{}'", word);
-                    self.conn
-                        .as_mut()
-                        .unwrap()
-                        .send_packet(Packet::add_word(&word))?;
-                }
-
-                self.current_text.clear();
             }
             _ => {}
         };

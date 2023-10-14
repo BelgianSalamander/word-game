@@ -1,34 +1,95 @@
 use std::{time::Instant, path::Path, str::Lines, net::{TcpListener, TcpStream}};
 
-use ggez::{Context, graphics::{FontData, Rect}, GameResult, event::EventHandler};
+use ggez::{Context, graphics::{FontData, Rect}, GameResult};
 use rand::Rng;
 
 use crate::network::{Packet, Connection, connect_to_dummy};
 
 pub const DEFAULT_WORD_LIST: &str = "5000_out";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum GameStatus {
-    Ongoing,
-    Win,
-    Lost,
-    InputData{input_y: u32, host: bool, ip: String, port: u32},
+#[derive(Debug, Clone, Copy)]
+pub enum GameOutcome {
+    Win, Loss
+}
+
+#[derive(Debug)]
+pub struct OngoingGame {
+    pub start_time: Instant,
+    pub total_words: u64,
+    
+    pub current_words: Vec<String>,
+    pub received_words: Vec<String>,
+
+    pub last_new_word: Instant,
+    pub current_text: String,
+
+    pub conn: Connection
+}
+
+#[derive(Debug)]
+pub enum GameState {
+    //InterState is an invalid state. It is needed to be able to move values out of one state (with std::mem::take) to put them into the new state
+    InvalidState,
+    Ongoing(OngoingGame),
+    Ended {
+        outcome: GameOutcome,
+        wpm: f32,
+
+        waiting_to_restart: bool,
+        opponent_waiting_to_restart: bool,
+
+        conn: Connection
+    },
+    ConnectionConfig {
+        input_y: u32,
+        host: bool,
+        ip: String,
+        port: u16
+    }
+}
+
+impl Default for GameState {
+    fn default() -> Self {
+        Self::InvalidState
+    }
+}
+
+//For state transitions that require moving out of the current state
+#[derive(Debug)]
+pub enum StateTransition {
+    WinGame, LoseGame,
+    RestartGame
 }
 
 pub struct WordGame {
-    pub start_time: Instant,
-    pub total_words: u64,
+    pub create_time: Instant,
     pub word_list: Vec<String>,
-    pub opponent_waiting_to_restart: bool,
-    pub waiting_to_restart: bool,
-    pub current_words: Vec<String>,
-    pub received_words: Vec<String>,
-    pub last_new_word: Instant,
-    pub current_text: String,
-    pub words_per_min: f32,
-    pub conn : Option<Connection>,
     pub draw_rect: Rect,
-    pub status: GameStatus
+    pub state: GameState,
+
+    queued_transitions: Vec<StateTransition>
+}
+
+const WORD_LIMIT: usize = 20;
+
+impl OngoingGame {
+    pub fn add_new_word(&mut self, list: &Vec<String>) {
+        let mut rng = rand::thread_rng();
+        let mut idx = rng.gen_range(0..list.len());
+        while self.current_words.contains(&list[idx]) {
+            idx = rng.gen_range(0..list.len());
+        }
+
+        self.current_words.push(list[idx].clone());
+    }
+
+    pub fn wpm(&self) -> f32 {
+        self.total_words as f32 / self.start_time.elapsed().as_secs_f32()
+    }
+
+    pub fn limit(&self) -> usize {
+        (WORD_LIMIT*2 - (self.start_time.elapsed().as_secs() as usize / (120 / WORD_LIMIT))).min(WORD_LIMIT)
+    }
 }
 
 impl WordGame {
@@ -49,96 +110,119 @@ impl WordGame {
 
 
 
-        ctx.gfx.add_font("courier_new", 
+        ctx.gfx.add_font(
+            "courier_new", 
             match FontData::from_path(ctx, "C:/Windows/Fonts/cour.ttf") {
                 Ok(a) => a,
                 _ => FontData::from_path(ctx, "/font/FiraCode-VariableFont_wght.ttf").unwrap()
-            });
-
-
-
+            }
+        );
 
         WordGame {
+            create_time: Instant::now(),
             word_list: words,
-            waiting_to_restart: false,
-            current_words: vec![],
-            received_words: vec![],
             draw_rect: Rect::one(),
-            last_new_word: Instant::now(),
-
-            current_text: String::new(),
-
-            conn: None,
             #[cfg(not(debug_assertions))]
-            status: GameStatus::InputData { input_y: 1, host: false, ip: "localhost".to_owned(), port: 5555 },
+            state: GameState::ConnectionConfig { input_y: 1, host: false, ip: "localhost".to_owned(), port: 5555 },
             
             #[cfg(debug_assertions)]
-            status: GameStatus::InputData { input_y: 1, host: false, ip: "bot".to_owned(), port: 5555 },
+            state: GameState::ConnectionConfig { input_y: 1, host: false, ip: "bot".to_owned(), port: 5555 },
 
-            start_time: Instant::now(),
-            total_words: 0,
-            words_per_min: 0.0,
-
-            opponent_waiting_to_restart: false,
+            queued_transitions: vec![]
         }
     }
 
-    /// adds a word to currrent words
-    pub fn add_new_word(&mut self) {
+    pub fn queue_transition(&mut self, transition: StateTransition) {
+        self.queued_transitions.push(transition);
+    }
 
-        let mut rng = rand::thread_rng();
-        let mut idx = rng.gen_range(0..self.word_list.len());
-        while self.current_words.contains(&self.word_list[idx]) {
-            idx = rng.gen_range(0..self.word_list.len());
+    pub fn flush_transitions(&mut self) {
+        let Self{state, queued_transitions, ..} = self;
+
+        for transition in queued_transitions.iter() {
+            let prev_state = std::mem::take(state);
+            *state = match (transition, prev_state) {
+                (StateTransition::WinGame, GameState::Ongoing(ongoing)) => {
+                    GameState::Ended {
+                        outcome: GameOutcome::Win, 
+                        wpm: ongoing.wpm(), 
+                        waiting_to_restart: false, 
+                        opponent_waiting_to_restart: false, 
+                        conn: ongoing.conn
+                    }
+                },
+                (StateTransition::LoseGame, GameState::Ongoing(ongoing)) => {
+                    GameState::Ended {
+                        outcome: GameOutcome::Loss, 
+                        wpm: ongoing.wpm(), 
+                        waiting_to_restart: false, 
+                        opponent_waiting_to_restart: false, 
+                        conn: ongoing.conn
+                    }
+                },
+                (StateTransition::RestartGame, GameState::Ended { conn, .. }) => {
+                    GameState::Ongoing(OngoingGame {
+                        start_time: Instant::now(), 
+                        total_words: 0, 
+                        current_words: vec![], 
+                        received_words: vec![], 
+                        last_new_word: Instant::now(), 
+                        current_text: String::new(), 
+                        conn
+                    })
+                }
+                (t, s) => panic!("Invalid transition {:?} for state {:?}", t, s)
+            };
         }
 
-
-        self.current_words.push(self.word_list[idx].clone());
+        queued_transitions.clear();
     }
 
     /// detects if word has been sent, and if so adds it to list of received words
     pub fn process_network(&mut self) -> GameResult {
-        loop {
-            if self.conn.is_none() {break}
-            let packet = self.conn.as_mut().unwrap().poll_next_packet()?;
+        match self.state {
+            GameState::Ongoing(ref mut ongoing) => {
+                loop {
+                    let packet = ongoing.conn.poll_next_packet()?;
 
-            if packet.is_none() {
-                break;
-            }
+                    match packet {
+                        None => break,
+                        Some(Packet::AddWord { word }) => {
+                            ongoing.received_words.push(word);
+                        },
+                        Some(Packet::ILost {  }) => {
+                            self.queue_transition(StateTransition::WinGame);
+                            break;
+                        },
 
-            match packet.unwrap() {
-                Packet::AddWord { word } => {
-                    self.received_words.push(word)
-                },
-                Packet::ILost {  } => {
-                    self.status = GameStatus::Win;
-                    self.current_words.clear();
-                    self.received_words.clear();
-                }
-                Packet::WaitingToRestart { } => {
-                    self.opponent_waiting_to_restart = true;
-                    if self.waiting_to_restart {
-                        self.reset();
+                        Some(p) => {
+                            println!("Warning! Unexpected packed {:?} received in ongoing state!", p)
+                        }
                     }
                 }
-                _ => {}
-            }
+            },
+            GameState::Ended { ref mut opponent_waiting_to_restart, ref mut conn, .. } => {
+                loop {
+                    let packet = conn.poll_next_packet()?;
+
+                    match packet {
+                        None => break,
+                        Some(Packet::WaitingToRestart) => {
+                            *opponent_waiting_to_restart = true;
+                        }
+
+                        Some(p) => {
+                            println!("Warning! Unexpected packed {:?} received in ongoing state!", p)
+                        }
+                    }
+                }
+            },
+            _ => {}
         }
 
-        Ok(())
-    }
+        self.flush_transitions();
 
-    pub fn reset(&mut self) {
-            self.current_words = vec![];
-            self.received_words = vec![];
-            self.last_new_word = Instant::now();
-            self.current_text = String::new();
-            self.status = GameStatus::Ongoing;
-            self.start_time = Instant::now();
-            self.total_words = 0;
-            self.words_per_min = 0.0;
-            self.opponent_waiting_to_restart = false;
-            self.waiting_to_restart = false;
+        Ok(())
     }
 
     pub fn connect_game(&self) {
@@ -146,60 +230,50 @@ impl WordGame {
     }
 
     pub fn pair_up_ui(&mut self) {
-        
-    let (host, ip, port) = match &self.status {
-        GameStatus::InputData { input_y: _, host, ip, port } => (
-            host,
-            ip,
-            port,
-        ),
-        _ => {
-            println!("failed to connect, status is {:?}", self.status);
-            return}
-    };
-
-    
-    let ip = ip.to_string();
-
-    let mut res:Option<TcpStream> = None;
-
-
-    if *host {
-        println!("Waiting for connection on {}:{}", ip, port);
-
-        if let Ok(listener) = TcpListener::bind((ip, *port as u16)) {
-            if let Ok((stream, addr)) = listener.accept() {
-                
-                println!("Got connection from {}", addr);
-        
-                res = Some(stream)
+        let conn = match &self.state {
+            GameState::ConnectionConfig { host: true, ip, .. } if ip == "bot" => {
+                connect_to_dummy().ok()
+            },
+            GameState::ConnectionConfig { host: true, ip, port, .. } => {
+                if let Ok(listener) = TcpListener::bind((ip.as_str(), *port)) {
+                    if let Ok((stream, addr)) = listener.accept() {
+                        println!("Got connection from {}", addr);
+                        Connection::new(stream).ok()
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            },
+            GameState::ConnectionConfig { host: false, ip, port, .. } => {
+                println!("Attempting to connect to {}:{}", ip, port);
+                if let Ok(stream) = TcpStream::connect((ip.as_str(), *port)) {
+                    Connection::new(stream).ok()
+                } else {
+                    None
+                }
+            },
+            other => {
+                println!("Invalid state for pairing up! {:?}", other);
+                None
             }
+        };
+            
+        if let Some(conn) = conn {
+            println!("Connected!");
+            self.state = GameState::Ongoing(OngoingGame {
+                start_time: Instant::now(), 
+                total_words: 0, 
+                current_words: vec![], 
+                received_words: vec![], 
+                last_new_word: Instant::now(), 
+                current_text: String::new(), 
+                conn
+            });
+        } else {
+            println!("Failed to connect!");
         }
-
-    } else {
-        println!("Attempting to connect to {}:{}", ip, port);
-
-        res = TcpStream::connect((ip, *port as u16)).ok();
-
-        println!("Connected!");
-
-        
-    }
-
-    if let Some(stream) = res {
-        self.conn = Connection::new(stream).ok();
-        self.status = GameStatus::Ongoing;
-        self.reset();
-        println!("{:?}", self.status);
-    }
-
-    if matches!(self.status.clone(), GameStatus::InputData { input_y:_addr, host:_, ip, port:_ } if ip == "bot") {
-        self.conn = connect_to_dummy().ok();
-        self.status = GameStatus::Ongoing;
-        self.reset();
-    }
-
-
     }
 }
 

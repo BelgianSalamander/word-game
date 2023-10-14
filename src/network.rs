@@ -256,6 +256,7 @@ impl Packet {
     }
 }
 
+#[derive(Debug)]
 pub struct Connection {
     pub stream: TcpStream,
     pub buf: Vec<u8>,
