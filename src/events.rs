@@ -50,7 +50,7 @@ impl EventHandler for WordGame {
         let draw_region = canvas.scissor_rect();
         let draw_region = shrink(draw_region, MARGIN);
         self.draw_rect = draw_region;
-        println!("{:?}", self.status);
+        
         match &self.status {
             GameStatus::Ongoing => {
                 let (word_region, write_region) = cut_bottom(draw_region, 75.0);
