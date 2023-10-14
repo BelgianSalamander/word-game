@@ -35,7 +35,9 @@ impl EventHandler for WordGame {
 
         self.process_network()?;
 
-        if self.received_words.len() > WORD_LIMIT {
+        let limit = (WORD_LIMIT*2 - (self.start_time.elapsed().as_secs() as usize/(120/WORD_LIMIT))).min(WORD_LIMIT);
+
+        if self.received_words.len() > limit {
             self.status = GameStatus::Lost;
             self.received_words.clear();
             self.current_words.clear();
@@ -54,6 +56,13 @@ impl EventHandler for WordGame {
         match &self.status {
             GameStatus::Ongoing => {
                 let (word_region, write_region) = cut_bottom(draw_region, 75.0);
+                let cursor = if (self.start_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
+                    == 0.0
+                {
+                    "|"
+                } else {
+                    " "
+                };
                 center_text_in_rect(
                     ctx,
                     &mut canvas,
@@ -62,7 +71,7 @@ impl EventHandler for WordGame {
                             .color(LIGHT_TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),
-                        _ => TextFragment::new(&self.current_text)
+                        _ => TextFragment::new(self.current_text.clone()+cursor)
                             .color(TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),
@@ -115,11 +124,11 @@ impl EventHandler for WordGame {
                     ),
                     current_word_region_header,
                 );
-
-            let exclamation_mark_count = if self.received_words.len() <= WORD_LIMIT - 5 {
+                let limit = (WORD_LIMIT*2 - (self.start_time.elapsed().as_secs() as usize/(120/WORD_LIMIT))).min(WORD_LIMIT);
+            let exclamation_mark_count = if self.received_words.len() <= limit - 5 {
                 0
             } else {
-                (self.received_words.len() + 5 - WORD_LIMIT).min(5)
+                (self.received_words.len() + 5 - limit).min(5)
             };
 
                 center_text_in_rect(
@@ -129,7 +138,7 @@ impl EventHandler for WordGame {
                         TextFragment::new(&format!(
                             "{}/{}{}",
                             self.received_words.len(),
-                            WORD_LIMIT,
+                            limit,
                             "!".repeat(exclamation_mark_count)
                         ))
                         .color(Color::BLACK)
