@@ -616,6 +616,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
+name = "dialog-box"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31eaa26cd5bd727727af2ecd667328a58440c1bf75eeb06b4c93d80b1cfe81bc"
+
+[[package]]
 name = "directories"
 version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2947,6 +2953,7 @@ dependencies = [
 name = "word-game"
 version = "0.1.0"
 dependencies = [
+ "dialog-box",
  "ggez",
  "rand",
 ]

@@ -2,6 +2,7 @@ use std::net::{TcpStream, TcpListener};
 use std::io::{self, Read, ErrorKind, Write};
 use std::{thread, fs};
 use std::time::{Duration, Instant};
+use dialog_box::{calender, warning};
 
 use rand::Rng;
 
@@ -257,9 +258,9 @@ impl Packet {
 }
 
 pub struct Connection {
-    stream: TcpStream,
-    buf: Vec<u8>,
-    buf_pos: usize
+    pub stream: TcpStream,
+    pub buf: Vec<u8>,
+    pub buf_pos: usize
 }
 
 pub struct DebugWriteWrapper<T: Write> {
@@ -371,6 +372,7 @@ impl Connection {
 }
 
 fn get_yes_no(msg: &str) -> io::Result<bool> {
+
     let stdin = io::stdin();
 
     loop {
@@ -478,7 +480,7 @@ fn run_dummy() {
         Some(format!("{}{}", first_char, rest))
     }).collect();
 
-    let secs_range = 1..=1;
+    let secs_range = 2..=3;
 
     let mut rng = rand::thread_rng();
     let mut next_word_send = Instant::now() + Duration::from_secs(rng.gen_range(secs_range.clone()));
