@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use ggez::conf::{WindowSetup, WindowMode, NumSamples};
 use ggez::ContextBuilder;
 use ggez::event;
