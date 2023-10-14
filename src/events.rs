@@ -92,7 +92,7 @@ impl EventHandler for WordGame {
             let exclamation_mark_count = if self.received_words.len() <= WORD_LIMIT - 5 {
                 0
             } else {
-                (self.received_words.len() + 5 - WORD_LIMIT).max(5)
+                (self.received_words.len() + 5 - WORD_LIMIT).min(5)
             };
 
             center_text_in_rect(ctx, &mut canvas, &Text::new(
@@ -151,6 +151,7 @@ impl EventHandler for WordGame {
                 match character {
                     'r' | 'R' => {
                         self.waiting_to_restart = true;
+                        self.conn.send_packet(Packet::WaitingToRestart)?;
                         if self.opponent_waiting_to_restart {
                             self.reset();
                         }
