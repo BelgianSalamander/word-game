@@ -49,7 +49,14 @@ impl WordGame {
 
 
 
-        ctx.gfx.add_font("courier_new", FontData::from_path(ctx, "/font/cour.ttf").unwrap());
+        ctx.gfx.add_font("courier_new", 
+            match FontData::from_path(ctx, "C:/Windows/Fonts/cour.ttf") {
+                Ok(a) => a,
+                _ => FontData::from_path(ctx, "/font/FiraCode-VariableFont_wght.ttf").unwrap()
+            });
+
+
+
 
         WordGame {
             word_list: words,

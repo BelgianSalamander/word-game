@@ -56,13 +56,7 @@ impl EventHandler for WordGame {
         match &self.status {
             GameStatus::Ongoing => {
                 let (word_region, write_region) = cut_bottom(draw_region, 75.0);
-                let cursor = if (self.start_time.elapsed().as_secs_f32() * 2.0).round() % 2.0
-                    == 0.0
-                {
-                    "|"
-                } else {
-                    " "
-                };
+
                 center_text_in_rect(
                     ctx,
                     &mut canvas,
@@ -71,7 +65,7 @@ impl EventHandler for WordGame {
                             .color(LIGHT_TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),
-                        _ => TextFragment::new(self.current_text.clone()+cursor)
+                        _ => TextFragment::new(self.current_text.clone()+"|")
                             .color(TEXT_COLOR)
                             .scale(70.0)
                             .font("courier_new"),

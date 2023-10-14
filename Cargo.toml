@@ -8,4 +8,7 @@ edition = "2021"
 [dependencies]
 ggez = "0.9.3"
 rand = "0.8.5"
-dialog-box = "0.1.0"
+
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }

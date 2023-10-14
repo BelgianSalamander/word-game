@@ -1,7 +1,6 @@
 use ggez::conf::{WindowSetup, WindowMode, NumSamples};
 use ggez::ContextBuilder;
 use ggez::event;
-use dialog_box;
 
 pub mod network;
 pub mod word_game;
