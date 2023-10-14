@@ -116,11 +116,11 @@ impl EventHandler for WordGame {
                     current_word_region_header,
                 );
 
-                let exclamation_mark_count = if self.received_words.len() <= WORD_LIMIT - 5 {
-                    0
-                } else {
-                    (self.received_words.len() + 5 - WORD_LIMIT).max(5)
-                };
+            let exclamation_mark_count = if self.received_words.len() <= WORD_LIMIT - 5 {
+                0
+            } else {
+                (self.received_words.len() + 5 - WORD_LIMIT).min(5)
+            };
 
                 center_text_in_rect(
                     ctx,
@@ -303,6 +303,8 @@ impl EventHandler for WordGame {
             GameStatus::Lost | GameStatus::Win => match character {
                 'r' | 'R' => {
                     self.waiting_to_restart = true;
+                    self.conn.as_mut().unwrap().send_packet(Packet::WaitingToRestart)?;
+
                     if self.opponent_waiting_to_restart {
                         self.reset();
                     }
