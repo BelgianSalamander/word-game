@@ -196,7 +196,7 @@ impl WordGame {
                         },
 
                         Some(p) => {
-                            println!("Warning! Unexpected packed {:?} received in ongoing state!", p)
+                            warn!("Unexpected packed {:?} received in ongoing state!", p)
                         }
                     }
                 }
@@ -212,7 +212,7 @@ impl WordGame {
                         }
 
                         Some(p) => {
-                            println!("Warning! Unexpected packed {:?} received in ongoing state!", p)
+                            warn!("Unexpected packet {:?} received in ongoing state!", p)
                         }
                     }
                 }
@@ -225,10 +225,6 @@ impl WordGame {
         Ok(())
     }
 
-    pub fn connect_game(&self) {
-
-    }
-
     pub fn pair_up_ui(&mut self) {
         let conn = match &self.state {
             GameState::ConnectionConfig { host: true, ip, .. } if ip == "bot" => {
@@ -237,7 +233,7 @@ impl WordGame {
             GameState::ConnectionConfig { host: true, ip, port, .. } => {
                 if let Ok(listener) = TcpListener::bind((ip.as_str(), *port)) {
                     if let Ok((stream, addr)) = listener.accept() {
-                        println!("Got connection from {}", addr);
+                        info!("Got connection from {}", addr);
                         Connection::new(stream).ok()
                     } else {
                         None
@@ -247,7 +243,7 @@ impl WordGame {
                 }
             },
             GameState::ConnectionConfig { host: false, ip, port, .. } => {
-                println!("Attempting to connect to {}:{}", ip, port);
+                info!("Attempting to connect to {}:{}", ip, port);
                 if let Ok(stream) = TcpStream::connect((ip.as_str(), *port)) {
                     Connection::new(stream).ok()
                 } else {
@@ -255,13 +251,13 @@ impl WordGame {
                 }
             },
             other => {
-                println!("Invalid state for pairing up! {:?}", other);
+                error!("Invalid state for pairing up! {:?}", other);
                 None
             }
         };
             
         if let Some(conn) = conn {
-            println!("Connected!");
+            info!("Connected!");
             self.state = GameState::Ongoing(OngoingGame {
                 start_time: Instant::now(), 
                 total_words: 0, 
@@ -272,7 +268,7 @@ impl WordGame {
                 conn
             });
         } else {
-            println!("Failed to connect!");
+            error!("Failed to connect!");
         }
     }
 }

@@ -349,7 +349,7 @@ impl EventHandler for WordGame {
         input: ggez::input::keyboard::KeyInput,
         _repeated: bool,
     ) -> Result<(), ggez::GameError> {
-        println!("Key Pressed! {:?}", input);
+        debug!("Key Pressed! {:?}", input);
         if input
             .mods
             .intersects(KeyMods::all() & KeyMods::SHIFT.complement())
@@ -410,7 +410,7 @@ impl EventHandler for WordGame {
 
                     *total_words += len_change as u64;
                     for word in words_to_send.iter() {
-                        println!("Sending '{}'", word);
+                        debug!("Sending '{}'", word);
                         conn.send_packet(Packet::add_word(&word))?;
                     }
 

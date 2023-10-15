@@ -9,9 +9,23 @@ pub mod word_game;
 pub mod render;
 pub mod events;
 
+use log::LevelFilter;
 use word_game::*;
 
+#[macro_use] extern crate log;
+
+fn init_logger() {
+    let mut builder = pretty_env_logger::formatted_timed_builder();
+
+    #[cfg(debug_assertions)]
+    builder.filter(Some("word_game"), LevelFilter::Trace);
+
+    builder.init();
+}
+
 fn main() {
+    init_logger();
+
     // Make a Context.
     let (mut ctx, event_loop) = ContextBuilder::new("my_game", "Cool Game Author")
         .window_mode(
