@@ -256,38 +256,11 @@ impl Packet {
     }
 }
 
+#[derive(Debug)]
 pub struct Connection {
     pub stream: TcpStream,
     pub buf: Vec<u8>,
     pub buf_pos: usize
-}
-
-pub struct DebugWriteWrapper<T: Write> {
-    inner: T
-}
-
-impl<T: Write> DebugWriteWrapper<T> {
-    pub fn new(inner: T) -> Self {
-        DebugWriteWrapper { inner }
-    }
-}
-
-impl<T: Write> Write for DebugWriteWrapper<T> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        print!("Writing the following data: '");
-
-        for x in buf {
-            print!("{}", *x as char);
-        }
-
-        println!("'");
-
-        self.inner.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
 }
 
 impl Connection {
@@ -325,11 +298,11 @@ impl Connection {
         }
 
         let packet_size = u32::from_be_bytes([self.buf[0], self.buf[1], self.buf[2], self.buf[3]]);
-        println!("Attempting to get packet of {} bytes", packet_size);
+        trace!("Attempting to get packet of {} bytes", packet_size);
         let mut required = packet_size as usize + 4 - self.buf_pos;
 
         while required > 0 {
-            println!("Missing {} bytes", required);
+            trace!("Missing {} bytes", required);
 
             let n_read = self.try_read(required)?;
 
@@ -343,8 +316,7 @@ impl Connection {
         let res = Packet::parse(&self.buf[4..])?;
 
         self.buf_pos = 0;
-        println!("Received packet!");
-        println!("{:?}", res);
+        debug!("Received packet! {:?}", res);
 
         Ok(Some(res))
     }
@@ -371,7 +343,6 @@ impl Connection {
 }
 
 fn get_yes_no(msg: &str) -> io::Result<bool> {
-
     let stdin = io::stdin();
 
     loop {
@@ -418,20 +389,20 @@ fn pair_up() -> io::Result<TcpStream> {
 
 
     if host {
-        println!("Waiting for connection on {}:{}", ip, port);
+        info!("Waiting for connection on {}:{}", ip, port);
 
         let listener = TcpListener::bind((ip, port))?;
         let (stream, addr) = listener.accept()?;
 
-        println!("Got connection from {}", addr);
+        info!("Got connection from {}", addr);
 
         Ok(stream)
     } else {
-        println!("Attempting to connect to {}:{}", ip, port);
+        info!("Attempting to connect to {}:{}", ip, port);
 
         let res = TcpStream::connect((ip, port))?;
 
-        println!("Connected!");
+        info!("Connected!");
 
         Ok(res)
     }
@@ -502,7 +473,7 @@ fn run_dummy() {
 
         match packet {
             Packet::ClientInfo {..} => {},
-            Packet::AddWord { word } => println!("Dummy received {word}"),
+            Packet::AddWord { word } => debug!("Dummy received {word}"),
             Packet::ILost {  } => {},
             Packet::WaitingToRestart => {
                 conn.send_packet(Packet::WaitingToRestart).unwrap();
